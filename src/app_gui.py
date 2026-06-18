@@ -18,11 +18,11 @@ class AppGUI(ctk.CTk):
         super().__init__()
 
         self.title("Reductor de Ruido con IA")
-        self.geometry("600x400")
+        self.geometry("650x450")
         self.resizable(False, False)
 
         self.audio_processor = AudioProcessor()
-        self.selected_file: str | None = None
+        self.selected_files: tuple = ()
         self.preview_thread: threading.Thread | None = None
         self.is_previewing = False
 
@@ -49,7 +49,7 @@ class AppGUI(ctk.CTk):
         self.file_label.pack(pady=(10, 20))
 
         self.select_btn = ctk.CTkButton(
-            self.left_frame, text="Seleccionar Archivo", command=self._select_file
+            self.left_frame, text="Seleccionar Archivo(s)", command=self._select_file
         )
         self.select_btn.pack(pady=10)
 
@@ -65,16 +65,22 @@ class AppGUI(ctk.CTk):
         self.slider_label = ctk.CTkLabel(
             self.right_frame, text="Fuerza del Filtro: 100 dB\n(100 = Limpieza Total)"
         )
-        self.slider_label.pack(pady=(10, 5))
+        self.slider_label.pack(pady=(5, 5))
 
         self.atten_slider = ctk.CTkSlider(
             self.right_frame, from_=0, to=100, number_of_steps=100, command=self._on_slider_change
         )
         self.atten_slider.set(100)
-        self.atten_slider.pack(pady=(0, 20))
+        self.atten_slider.pack(pady=(0, 15))
+
+        self.postprocess_var = ctk.BooleanVar(value=True)
+        self.postprocess_check = ctk.CTkCheckBox(
+            self.right_frame, text="Mejorar Voz (Normalizar y EQ)", variable=self.postprocess_var
+        )
+        self.postprocess_check.pack(pady=(0, 20))
 
         self.preview_btn = ctk.CTkButton(
-            self.right_frame, text="▶ Vista Previa (20s)", command=self._toggle_preview, state="disabled", fg_color="#1f538d", hover_color="#14375e"
+            self.right_frame, text="▶ Vista Previa (1er Archivo)", command=self._toggle_preview, state="disabled", fg_color="#1f538d", hover_color="#14375e"
         )
         self.preview_btn.pack(pady=10)
 
@@ -84,7 +90,7 @@ class AppGUI(ctk.CTk):
 
         self.process_btn = ctk.CTkButton(
             self.bottom_frame, 
-            text="Procesar Archivo Completo", 
+            text="Procesar Selección", 
             command=self._start_processing, 
             state="disabled", 
             fg_color="green", 
@@ -94,7 +100,7 @@ class AppGUI(ctk.CTk):
         )
         self.process_btn.pack(pady=(5, 10))
 
-        self.progress_bar = ctk.CTkProgressBar(self.bottom_frame, mode="indeterminate", width=400)
+        self.progress_bar = ctk.CTkProgressBar(self.bottom_frame, mode="determinate", width=400)
         self.progress_bar.set(0)
 
         self.status_label = ctk.CTkLabel(self.bottom_frame, text="", text_color="orange")
@@ -108,18 +114,22 @@ class AppGUI(ctk.CTk):
             ("Archivos Multimedia", "*.mp4 *.mkv *.mov *.avi *.mp3 *.wav *.flac *.aac *.ogg"),
             ("Todos los archivos", "*.*")
         ]
-        file_path = filedialog.askopenfilename(title="Selecciona un archivo", filetypes=filetypes)
+        file_paths = filedialog.askopenfilenames(title="Selecciona los archivos", filetypes=filetypes)
         
-        if file_path:
-            self.selected_file = file_path
-            file_name = os.path.basename(file_path)
-            self.file_label.configure(text=f"Archivo:\n{file_name}", text_color="white")
+        if file_paths:
+            self.selected_files = file_paths
+            if len(self.selected_files) == 1:
+                file_name = os.path.basename(self.selected_files[0])
+                self.file_label.configure(text=f"Archivo:\n{file_name}", text_color="white")
+            else:
+                self.file_label.configure(text=f"{len(self.selected_files)} archivos seleccionados", text_color="white")
+                
             self.process_btn.configure(state="normal")
             self.preview_btn.configure(state="normal")
             self.status_label.configure(text="")
 
     def _toggle_preview(self) -> None:
-        if not self.selected_file:
+        if not self.selected_files:
             return
             
         if self.is_previewing:
@@ -137,75 +147,94 @@ class AppGUI(ctk.CTk):
             self.process_btn.configure(state="disabled")
             self.status_label.configure(text="Reproduciendo vista previa... (Ajusta el slider si lo necesitas)", text_color="cyan")
         else:
-            self.preview_btn.configure(text="▶ Vista Previa (20s)", fg_color="#1f538d", hover_color="#14375e")
+            self.preview_btn.configure(text="▶ Vista Previa (1er Archivo)", fg_color="#1f538d", hover_color="#14375e")
             self.process_btn.configure(state="normal")
             self.status_label.configure(text="")
 
     def _run_preview(self) -> None:
         try:
             val = self.atten_slider.get()
-            self.audio_processor.preview_audio(self.selected_file, atten_lim_db=val) # type: ignore
+            do_post = self.postprocess_var.get()
+            first_file = self.selected_files[0]
+            self.audio_processor.preview_audio(first_file, atten_lim_db=val, apply_postprocess=do_post) # type: ignore
         except Exception as e:
             self.status_label.configure(text=f"Error en preview: {str(e)}", text_color="red")
         finally:
-            # Una vez que termina el preview, regresamos al estado inicial
             self._set_preview_state(False)
 
     def _start_processing(self) -> None:
-        if not self.selected_file:
+        if not self.selected_files:
             return
 
         self.select_btn.configure(state="disabled")
         self.process_btn.configure(state="disabled")
         self.preview_btn.configure(state="disabled")
         self.atten_slider.configure(state="disabled")
+        self.postprocess_check.configure(state="disabled")
         
         self.status_label.configure(
-            text="Procesando con Inteligencia Artificial...\nEste proceso puede tomar varios minutos.", 
+            text=f"Procesando 0 de {len(self.selected_files)} archivos...", 
             text_color="orange"
         )
         
+        self.progress_bar.set(0)
         self.progress_bar.pack(pady=(5, 0))
-        self.progress_bar.start()
 
         threading.Thread(target=self._process_task, daemon=True).start()
 
     def _process_task(self) -> None:
-        try:
-            name, ext = os.path.splitext(self.selected_file) # type: ignore
-            
-            if self.audio_processor.is_video_file(self.selected_file):
-                output_path = f"{name}_limpio{ext}"
-            else:
-                # Para evitar fallos en backend de C++ guardando OGG/OPUS, forzamos salida a WAV
-                output_path = f"{name}_limpio.wav"
+        total = len(self.selected_files)
+        val = self.atten_slider.get()
+        do_post = self.postprocess_var.get()
+        first_output_path = None
+        has_error = False
 
-            val = self.atten_slider.get()
-            self.audio_processor.process_file(self.selected_file, output_path, atten_lim_db=val) # type: ignore
+        for i, input_file in enumerate(self.selected_files):
+            try:
+                self.status_label.configure(text=f"Procesando {i+1} de {total}: {os.path.basename(input_file)}")
+                
+                name, ext = os.path.splitext(input_file)
+                if self.audio_processor.is_video_file(input_file):
+                    output_path = f"{name}_limpio{ext}"
+                else:
+                    output_path = f"{name}_limpio.wav"
 
-            msg = f"¡Completado!\nGuardado como: {os.path.basename(output_path)}"
+                if first_output_path is None:
+                    first_output_path = output_path
+
+                self.audio_processor.process_file(input_file, output_path, atten_lim_db=val, apply_postprocess=do_post)
+                
+                # Actualizar barra de progreso determinada
+                progress = (i + 1) / total
+                self.progress_bar.set(progress)
+
+            except Exception as e:
+                has_error = True
+                self._update_gui_after_process(success=False, msg=f"Error en {os.path.basename(input_file)}: {str(e)}")
+                return # Salir del bucle si hay error
+
+        if not has_error:
+            msg = f"¡Completado!\nSe procesaron {total} archivos exitosamente."
             self._update_gui_after_process(success=True, msg=msg)
             
-            try:
-                subprocess.Popen(f'explorer /select,"{os.path.normpath(output_path)}"')
-            except Exception:
-                pass
-        
-        except Exception as e:
-            self._update_gui_after_process(success=False, msg=f"Error: {str(e)}")
+            if first_output_path:
+                try:
+                    subprocess.Popen(f'explorer /select,"{os.path.normpath(first_output_path)}"')
+                except Exception:
+                    pass
 
     def _update_gui_after_process(self, success: bool, msg: str) -> None:
-        self.progress_bar.stop()
         self.progress_bar.pack_forget()
         
         self.select_btn.configure(state="normal")
         self.process_btn.configure(state="normal")
         self.preview_btn.configure(state="normal")
         self.atten_slider.configure(state="normal")
+        self.postprocess_check.configure(state="normal")
         
         if success:
-            self.status_label.configure(text=msg, text_color="green")
+            self.status_label.configure(text="Proceso Finalizado", text_color="green")
             messagebox.showinfo("Proceso Terminado", msg)
         else:
-            self.status_label.configure(text="Ocurrió un error inesperado.", text_color="red")
+            self.status_label.configure(text="Proceso interrumpido.", text_color="red")
             messagebox.showerror("Error de Procesamiento", msg)

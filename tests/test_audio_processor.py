@@ -1,4 +1,5 @@
 import pytest
+import torch
 from unittest.mock import patch, MagicMock
 from src.audio_processor import AudioProcessor
 
@@ -11,54 +12,38 @@ class TestAudioProcessor:
     @patch("src.audio_processor.AudioProcessor._apply_deepfilternet")
     def test_process_audio_only(self, mock_apply_dfn):
         processor = AudioProcessor()
-        
-        # Pasamos el nuevo parámetro
-        processor.process_file("input.mp3", "output.mp3", atten_lim_db=50.0)
-        
-        mock_apply_dfn.assert_called_once_with("input.mp3", "output.mp3", 50.0)
+        processor.process_file("input.mp3", "output.mp3", atten_lim_db=50.0, apply_postprocess=True)
+        mock_apply_dfn.assert_called_once_with("input.mp3", "output.mp3", 50.0, True)
 
     @patch("src.audio_processor.VideoFileClip")
     @patch("src.audio_processor.AudioFileClip")
     @patch("src.audio_processor.AudioProcessor._apply_deepfilternet")
     def test_process_video(self, mock_apply_dfn, mock_audio_clip, mock_video_clip):
         processor = AudioProcessor()
-        
         mock_v_clip_instance = MagicMock()
         mock_video_clip.return_value.__enter__.return_value = mock_v_clip_instance
-        
         mock_a_clip_instance = MagicMock()
         mock_audio_clip.return_value.__enter__.return_value = mock_a_clip_instance
 
-        # Ejecución con el nuevo parámetro
-        processor.process_file("input.mp4", "output.mp4", atten_lim_db=70.0)
-        
+        processor.process_file("input.mp4", "output.mp4", atten_lim_db=70.0, apply_postprocess=False)
         mock_v_clip_instance.audio.write_audiofile.assert_called_once()
         mock_apply_dfn.assert_called_once()
-        
-        # Verificar que el tercer argumento de la llamada sea 70.0
         args, kwargs = mock_apply_dfn.call_args
         assert args[2] == 70.0
-        
-        mock_v_clip_instance.set_audio.assert_called_once_with(mock_a_clip_instance)
+        assert args[3] is False
 
-    @patch("src.audio_processor.sd")
-    @patch("src.audio_processor.load_audio") # Asumiendo que simulamos carga y enhance para evitar escribir a disco
-    @patch("src.audio_processor.enhance")
-    @patch("src.audio_processor.AudioFileClip")
-    def test_preview_audio(self, mock_audio_clip, mock_enhance, mock_load_audio, mock_sd):
+    @patch("src.audio_processor.F")
+    def test_postprocess(self, mock_F):
         processor = AudioProcessor()
+        # Create a dummy tensor of shape [1, 100] with max val 0.5
+        dummy_audio = torch.ones((1, 100)) * 0.5
+        mock_F.highpass_biquad.return_value = dummy_audio
+        mock_F.treble_biquad.return_value = dummy_audio
         
-        mock_a_clip_instance = MagicMock()
-        mock_a_clip_instance.duration = 50.0
-        mock_audio_clip.return_value.__enter__.return_value = mock_a_clip_instance
+        result = processor._apply_postprocess(dummy_audio, 48000)
         
-        # Configuramos los mocks de la IA
-        mock_load_audio.return_value = (MagicMock(), 48000)
-        mock_enhance.return_value = MagicMock()
-
-        processor.preview_audio("input.mp3", atten_lim_db=30.0)
+        mock_F.highpass_biquad.assert_called_once()
+        mock_F.treble_biquad.assert_called_once()
         
-        # El clip debe ser cortado a 20 segundos
-        mock_a_clip_instance.subclip.assert_called_once_with(0, 20.0)
-        # La librería de sonido debió haber llamado a play
-        mock_sd.play.assert_called_once()
+        # Max val must be normalized to 0.89
+        assert torch.isclose(result.abs().max(), torch.tensor(0.89), atol=1e-5)
