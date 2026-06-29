@@ -11,15 +11,12 @@ if not exist "venv" (
     python -m venv venv
 )
 
-:: Activar entorno virtual
-call .\venv\Scripts\activate.bat
-
-:: Ejecutar instalacion inteligente de dependencias segun tarjeta grafica
+:: Ejecutar instalacion inteligente de dependencias usando el Python del entorno virtual
 echo Verificando y configurando dependencias de hardware...
-python setup_dependencies.py
+".\venv\Scripts\python.exe" setup_dependencies.py
 
-:: Iniciar la aplicacion
+:: Iniciar la aplicacion usando el Python del entorno virtual
 echo Iniciando aplicacion...
-python main.py
+".\venv\Scripts\python.exe" main.py
 
 pause
