@@ -1,0 +1,74 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            artifact_name: AI-Multimedia-Enhancer.exe
+            asset_path: dist/AI-Multimedia-Enhancer.exe
+          - os: macos-latest
+            artifact_name: AI-Multimedia-Enhancer-mac
+            asset_path: dist/AI-Multimedia-Enhancer
+          - os: ubuntu-latest
+            artifact_name: AI-Multimedia-Enhancer-linux
+            asset_path: dist/AI-Multimedia-Enhancer
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Run build script
+        run: python build.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.asset_path }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/AI-Multimedia-Enhancer.exe/AI-Multimedia-Enhancer.exe
+            artifacts/AI-Multimedia-Enhancer-mac/AI-Multimedia-Enhancer
+            artifacts/AI-Multimedia-Enhancer-linux/AI-Multimedia-Enhancer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
