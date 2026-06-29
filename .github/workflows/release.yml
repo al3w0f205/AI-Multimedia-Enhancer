@@ -17,14 +17,14 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
         include:
           - os: windows-latest
-            artifact_name: AI-Multimedia-Enhancer.exe
-            asset_path: dist/AI-Multimedia-Enhancer.exe
+            artifact_name: AI-Multimedia-Enhancer-Installer.exe
+            asset_path: installer_dist/AI-Multimedia-Enhancer-Installer.exe
           - os: macos-latest
-            artifact_name: AI-Multimedia-Enhancer-mac
-            asset_path: dist/AI-Multimedia-Enhancer
+            artifact_name: AI-Multimedia-Enhancer.dmg
+            asset_path: dist/AI-Multimedia-Enhancer.dmg
           - os: ubuntu-latest
-            artifact_name: AI-Multimedia-Enhancer-linux
-            asset_path: dist/AI-Multimedia-Enhancer
+            artifact_name: AI-Multimedia-Enhancer-linux.tar.gz
+            asset_path: dist/AI-Multimedia-Enhancer-linux.tar.gz
 
     steps:
       - name: Checkout repository
@@ -43,6 +43,30 @@ jobs:
 
       - name: Run build script
         run: python build.py
+
+      # Empaquetado según sistema operativo
+      - name: Packaging Windows Installer (Inno Setup)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install innosetup
+          iscc installer_setup.iss
+
+      - name: Packaging macOS Disk Image (create-dmg)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "AI Multimedia Enhancer" \
+            --window-size 500 300 \
+            --icon-size 100 \
+            --app-drop-link 380 120 \
+            "dist/AI-Multimedia-Enhancer.dmg" \
+            "dist/AI-Multimedia-Enhancer.app"
+
+      - name: Packaging Linux Tarball
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          tar -czf dist/AI-Multimedia-Enhancer-linux.tar.gz -C dist AI-Multimedia-Enhancer
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -67,8 +91,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/AI-Multimedia-Enhancer.exe/AI-Multimedia-Enhancer.exe
-            artifacts/AI-Multimedia-Enhancer-mac/AI-Multimedia-Enhancer
-            artifacts/AI-Multimedia-Enhancer-linux/AI-Multimedia-Enhancer
+            artifacts/AI-Multimedia-Enhancer-Installer.exe/AI-Multimedia-Enhancer-Installer.exe
+            artifacts/AI-Multimedia-Enhancer.dmg/AI-Multimedia-Enhancer.dmg
+            artifacts/AI-Multimedia-Enhancer-linux.tar.gz/AI-Multimedia-Enhancer-linux.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
