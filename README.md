@@ -38,8 +38,11 @@ Unifica modelos de Inteligencia Artificial para el procesamiento de audio y vide
 
 ## Download
 
-[<img src="https://raw.githubusercontent.com/ungive/discord-music-presence/refs/heads/master/assets/download_windows-installer-x64.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
-[<img src="https://raw.githubusercontent.com/ungive/discord-music-presence/refs/heads/master/assets/download_windows-zip-x64.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
+[<img src="./assets/download_windows_installer.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
+[<img src="./assets/download_windows_zip.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
+[<img src="./assets/download_mac_dmg_arm64.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
+[<img src="./assets/download_mac_dmg_x64.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
+[<img src="./assets/download_linux_tar.png" width="190">](https://github.com/al3w0f205/AI-Multimedia-Enhancer/releases)
 
 Las versiones ejecutables empaquetadas estan disponibles en la seccion de lanzamientos de GitHub. Para ejecutar desde el codigo fuente local, consulte las instrucciones a continuacion.
 
