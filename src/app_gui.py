@@ -444,11 +444,11 @@ class AppGUI(ctk.CTk):
                                 target_path = fallback_path
                     
                     if os.path.exists(target_path):
-                        subprocess.Popen(f'explorer /select,"{os.path.normpath(target_path)}"')
+                        subprocess.Popen(["explorer", f"/select,{os.path.normpath(target_path)}"])
                     else:
                         folder = os.path.dirname(first_output_path)
                         if os.path.exists(folder):
-                            subprocess.Popen(f'explorer "{os.path.normpath(folder)}"')
+                            subprocess.Popen(["explorer", os.path.normpath(folder)])
                 except Exception:
                     pass
 

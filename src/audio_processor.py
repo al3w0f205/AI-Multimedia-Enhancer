@@ -15,7 +15,15 @@ except ImportError:
     import types
     # Crear módulo ficticio en sys.modules para engañar al importador de DeepFilterNet
     dummy_module = types.ModuleType("torchaudio.backend.common")
-    dummy_module.AudioMetaData = torchaudio.AudioMetaData
+    if hasattr(torchaudio, "AudioMetadata"):
+        dummy_module.AudioMetaData = torchaudio.AudioMetadata
+    elif hasattr(torchaudio, "AudioMetaData"):
+        dummy_module.AudioMetaData = torchaudio.AudioMetaData
+    else:
+        # Fallback genérico
+        class DummyMetadata:
+            pass
+        dummy_module.AudioMetaData = DummyMetadata
     sys.modules["torchaudio.backend.common"] = dummy_module
 
 from df.enhance import enhance, init_df, load_audio, save_audio
