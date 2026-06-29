@@ -60,6 +60,8 @@ class VideoEnhancer:
         model_arch = model_loader.load_from_file(self.model_path)
         
         self.model = model_arch.eval().to(self.device)
+        if self.device.type == "cuda":
+            self.model = self.model.half()
         print("Modelo cargado exitosamente.")
 
     def enhance_video(self, input_video_path, input_audio_path, output_video_path, resolution_option, audio_bitrate="192k", video_preset="fast", video_crf="18", video_format="mp4", progress_callback=None, video_fps="Original", cancel_check=None):
@@ -157,13 +159,16 @@ class VideoEnhancer:
             if not ret:
                 break
                 
-            tensor = torch.from_numpy(frame).permute(2, 0, 1).unsqueeze(0).float().to(self.device) / 255.0
+            is_cuda = self.device.type == "cuda"
+            dtype = torch.float16 if is_cuda else torch.float32
+            
+            tensor = torch.from_numpy(frame).permute(2, 0, 1).unsqueeze(0).to(dtype=dtype, device=self.device) / 255.0
             tensor = tensor[:, [2, 1, 0], :, :]
             
             with torch.no_grad():
                 out_tensor = self.model(tensor)
                 
-            out_tensor = out_tensor.clamp(0, 1).squeeze(0).permute(1, 2, 0).cpu().numpy()
+            out_tensor = out_tensor.clamp(0, 1).squeeze(0).permute(1, 2, 0).float().cpu().numpy()
             out_frame = (out_tensor[:, :, [2, 1, 0]] * 255).astype(np.uint8)
             
             for proc, w, h in procs:
