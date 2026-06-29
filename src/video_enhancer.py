@@ -159,10 +159,21 @@ class VideoEnhancer:
             if not ret:
                 break
                 
+            # Si la salida objetivo es 1080p y el video original es mayor a 540p,
+            # lo reducimos a 540p antes de la IA para que la salida x2 sea de exactamente 1080p.
+            # Esto evita procesar a 4K innecesariamente y acelera la inferencia de 4 a 6 veces.
+            if force_1080p and in_height > 540:
+                target_in_h = 540
+                target_in_w = int(540 * (in_width / in_height))
+                if target_in_w % 2 != 0: target_in_w += 1
+                frame_for_ai = cv2.resize(frame, (target_in_w, target_in_h), interpolation=cv2.INTER_AREA)
+            else:
+                frame_for_ai = frame
+                
             is_cuda = self.device.type == "cuda"
             dtype = torch.float16 if is_cuda else torch.float32
             
-            tensor = torch.from_numpy(frame).permute(2, 0, 1).unsqueeze(0).to(dtype=dtype, device=self.device) / 255.0
+            tensor = torch.from_numpy(frame_for_ai).permute(2, 0, 1).unsqueeze(0).to(dtype=dtype, device=self.device) / 255.0
             tensor = tensor[:, [2, 1, 0], :, :]
             
             with torch.no_grad():
