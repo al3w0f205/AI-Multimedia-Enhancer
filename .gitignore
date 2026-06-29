@@ -7,6 +7,15 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+
+# Entornos de desarrollo e IDEs
+.vscode/
+.idea/
+.agents/
+
+# Modelos de IA pesados (se descargan automáticamente en la primera ejecución si no existen)
+models/
 
 # Archivos temporales de audio/video y pruebas del usuario
 *.mp3
