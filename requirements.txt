@@ -4,3 +4,6 @@ customtkinter>=5.2.2
 pytest>=8.0.0
 soundfile>=0.12.1
 sounddevice>=0.4.6
+opencv-python>=4.8.0
+spandrel>=0.3.0
+tqdm>=4.65.0

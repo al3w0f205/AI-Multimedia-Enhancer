@@ -137,6 +137,10 @@ class AudioProcessor:
         if apply_postprocess:
             enhanced_audio = self._apply_postprocess(enhanced_audio, df_state.sr(), audio_gain)
             
+        # Asegurar salida estéreo (2 canales idénticos)
+        if enhanced_audio.shape[0] == 1:
+            enhanced_audio = enhanced_audio.repeat(2, 1)
+            
         ext = audio_format.lower()
         if ext == "wav":
             save_audio(output_audio, enhanced_audio, df_state.sr())
@@ -191,6 +195,10 @@ class AudioProcessor:
             if apply_postprocess:
                 enhanced_audio = self._apply_postprocess(enhanced_audio, df_state.sr(), audio_gain)
             
+            # Asegurar salida estéreo para reproducción
+            if enhanced_audio.shape[0] == 1:
+                enhanced_audio = enhanced_audio.repeat(2, 1)
+                
             audio_array = enhanced_audio.cpu().numpy().T
             sd.play(audio_array, samplerate=df_state.sr())
             sd.wait()
