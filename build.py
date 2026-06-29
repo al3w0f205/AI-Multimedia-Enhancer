@@ -17,10 +17,11 @@ def build():
     # En Windows es ';', en Linux/macOS es ':'
     sep = ";" if sys.platform.startswith("win") else ":"
     
-    # Comando de PyInstaller para compilar la aplicacion a un binario
+    # Comando de PyInstaller para compilar la aplicacion a un directorio
     cmd = [
         "pyinstaller",
         "--noconsole",
+        "--onedir",
         "--clean",
         "--name=AI-Multimedia-Enhancer",
         f"--add-data={ctk_path}{sep}customtkinter",
