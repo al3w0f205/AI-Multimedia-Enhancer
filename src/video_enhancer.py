@@ -15,7 +15,21 @@ def download_file(url, dest_path):
 
 class VideoEnhancer:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Detección automática del mejor hardware (NVIDIA CUDA, Apple MPS, AMD/Intel DirectML o CPU)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif hasattr(torch, "backends") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            try:
+                import torch_directml
+                if torch_directml.is_available():
+                    self.device = torch_directml.device()
+                else:
+                    self.device = torch.device("cpu")
+            except ImportError:
+                self.device = torch.device("cpu")
+                
         self.model_path = os.path.join("models", "RealESRGAN_x2plus.pth")
         self.model_url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"
         self.model = None
@@ -30,8 +44,13 @@ class VideoEnhancer:
         if not os.path.exists(self.model_path):
             download_file(self.model_url, self.model_path)
             
+        # Reportar hardware seleccionado
         if self.device.type == "cuda":
-            print("Cargando modelo de IA en la tarjeta gráfica (GPU)...")
+            print("Cargando modelo de IA en la GPU (NVIDIA CUDA)...")
+        elif self.device.type == "mps":
+            print("Cargando modelo de IA en la GPU (Apple Silicon MPS)...")
+        elif "privateuseone" in self.device.type or "dml" in str(self.device):
+            print("Cargando modelo de IA en la GPU (AMD/Intel DirectML)...")
         else:
             print("Cargando modelo de IA en la CPU (¡Atención: El procesamiento en CPU será muy lento!)...")
             
