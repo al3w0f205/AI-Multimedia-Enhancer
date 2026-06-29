@@ -1,4 +1,6 @@
 import os
+import subprocess
+import imageio_ffmpeg
 import torch
 import sounddevice as sd
 import torchaudio.functional as F
@@ -17,26 +19,60 @@ class AudioProcessor:
         _, ext = os.path.splitext(file_path.lower())
         return ext in self.video_extensions
 
-    def process_file(self, input_path: str, output_path: str, atten_lim_db: float = 100.0, apply_postprocess: bool = True) -> None:
+    def process_file(self, input_path: str, output_path: str, atten_lim_db: float = 100.0, apply_postprocess: bool = True, enhance_video: bool = False, video_resolution: str = "1080p") -> None:
         if self.is_video_file(input_path):
-            self._process_video(input_path, output_path, atten_lim_db, apply_postprocess)
+            try:
+                self._process_video(input_path, output_path, atten_lim_db, apply_postprocess, enhance_video, video_resolution)
+            except Exception as e:
+                print(f"Advertencia: No se pudo procesar {input_path} como video. Intentando como audio puro... Error: {str(e)}")
+                # Cambiamos la extensión de salida a .wav ya que el original tenía extensión de video
+                base_name = os.path.splitext(output_path)[0]
+                audio_output_path = f"{base_name}.wav"
+                
+                temp_fallback_wav = f"{input_path}_fallback.wav"
+                try:
+                    with AudioFileClip(input_path) as audio_clip:
+                        audio_clip.write_audiofile(temp_fallback_wav, logger="bar")
+                    self._apply_deepfilternet(temp_fallback_wav, audio_output_path, atten_lim_db, apply_postprocess)
+                finally:
+                    if os.path.exists(temp_fallback_wav):
+                        os.remove(temp_fallback_wav)
         else:
             self._apply_deepfilternet(input_path, output_path, atten_lim_db, apply_postprocess)
 
-    def _process_video(self, input_path: str, output_path: str, atten_lim_db: float, apply_postprocess: bool) -> None:
+    def _process_video(self, input_path: str, output_path: str, atten_lim_db: float, apply_postprocess: bool, enhance_video: bool, video_resolution: str) -> None:
         temp_audio_in = f"{input_path}_temp_in.wav"
         temp_audio_out = f"{input_path}_temp_out.wav"
         try:
+            # Extraer audio original
             with VideoFileClip(input_path) as video_clip:
-                video_clip.audio.write_audiofile(temp_audio_in, logger=None)
-                self._apply_deepfilternet(temp_audio_in, temp_audio_out, atten_lim_db, apply_postprocess)
-                with AudioFileClip(temp_audio_out) as clean_audio_clip:
-                    video_clip_with_clean_audio = video_clip.set_audio(clean_audio_clip)
-                    video_clip_with_clean_audio.write_videofile(
-                        output_path, 
-                        audio_codec="aac",
-                        logger=None
-                    )
+                video_clip.audio.write_audiofile(temp_audio_in, logger="bar")
+            
+            # Limpiar audio con IA
+            self._apply_deepfilternet(temp_audio_in, temp_audio_out, atten_lim_db, apply_postprocess)
+            
+            # Unir video original (sin alterar) con el nuevo audio usando FFmpeg directamente
+            if enhance_video:
+                print("Mejorando video con Inteligencia Artificial (Spandrel)...")
+                from src.video_enhancer import VideoEnhancer
+                enhancer = VideoEnhancer()
+                enhancer.enhance_video(input_path, temp_audio_out, output_path, video_resolution)
+            else:
+                print("Uniendo video y audio limpio...")
+                ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+                subprocess.run([
+                    ffmpeg_path,
+                    "-y", 
+                    "-i", input_path,
+                    "-i", temp_audio_out,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    output_path
+                ], check=True)
+            print("Video guardado exitosamente.")
+            
         finally:
             if os.path.exists(temp_audio_in):
                 os.remove(temp_audio_in)
@@ -74,7 +110,7 @@ class AudioProcessor:
             with AudioFileClip(input_path) as clip:
                 duration = min(20.0, clip.duration) if clip.duration else 20.0
                 sub_clip = clip.subclip(0, duration)
-                sub_clip.write_audiofile(temp_audio_preview, logger=None)
+                sub_clip.write_audiofile(temp_audio_preview, logger="bar")
             
             model, df_state, _ = init_df()
             audio, _ = load_audio(temp_audio_preview, sr=df_state.sr())

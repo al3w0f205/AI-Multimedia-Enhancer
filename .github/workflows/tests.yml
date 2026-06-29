@@ -20,10 +20,10 @@ jobs:
         python-version: "3.11"
         cache: 'pip'
         
-    - name: Instalar dependencias del sistema (FFmpeg)
+    - name: Instalar dependencias del sistema (FFmpeg y PortAudio)
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg
+        sudo apt-get install -y ffmpeg portaudio19-dev
         
     - name: Instalar dependencias de Python
       run: |

@@ -79,6 +79,20 @@ class AppGUI(ctk.CTk):
         )
         self.postprocess_check.pack(pady=(0, 20))
 
+        self.enhance_video_var = ctk.BooleanVar(value=False)
+        self.enhance_video_check = ctk.CTkCheckBox(
+            self.right_frame, text="Mejorar Video con IA (GPU)", variable=self.enhance_video_var, command=self._toggle_video_options
+        )
+        self.enhance_video_check.pack(pady=(0, 10))
+
+        self.video_resolution_var = ctk.StringVar(value="1080p (Super-Sampling)")
+        self.video_resolution_menu = ctk.CTkOptionMenu(
+            self.right_frame, variable=self.video_resolution_var,
+            values=["1080p (Super-Sampling)", "x2 (Doble Resolución)"],
+            state="disabled"
+        )
+        self.video_resolution_menu.pack(pady=(0, 20))
+
         self.preview_btn = ctk.CTkButton(
             self.right_frame, text="▶ Vista Previa (1er Archivo)", command=self._toggle_preview, state="disabled", fg_color="#1f538d", hover_color="#14375e"
         )
@@ -108,6 +122,12 @@ class AppGUI(ctk.CTk):
 
     def _on_slider_change(self, value: float) -> None:
         self.slider_label.configure(text=f"Fuerza del Filtro: {int(value)} dB\n(100 = Limpieza Total)")
+
+    def _toggle_video_options(self) -> None:
+        if self.enhance_video_var.get():
+            self.video_resolution_menu.configure(state="normal")
+        else:
+            self.video_resolution_menu.configure(state="disabled")
 
     def _select_file(self) -> None:
         filetypes = [
@@ -158,9 +178,9 @@ class AppGUI(ctk.CTk):
             first_file = self.selected_files[0]
             self.audio_processor.preview_audio(first_file, atten_lim_db=val, apply_postprocess=do_post) # type: ignore
         except Exception as e:
-            self.status_label.configure(text=f"Error en preview: {str(e)}", text_color="red")
+            self.after(0, lambda err=str(e): self.status_label.configure(text=f"Error en preview: {err}", text_color="red"))
         finally:
-            self._set_preview_state(False)
+            self.after(0, lambda: self._set_preview_state(False))
 
     def _start_processing(self) -> None:
         if not self.selected_files:
@@ -171,13 +191,16 @@ class AppGUI(ctk.CTk):
         self.preview_btn.configure(state="disabled")
         self.atten_slider.configure(state="disabled")
         self.postprocess_check.configure(state="disabled")
+        self.enhance_video_check.configure(state="disabled")
+        self.video_resolution_menu.configure(state="disabled")
         
         self.status_label.configure(
             text=f"Procesando 0 de {len(self.selected_files)} archivos...", 
             text_color="orange"
         )
         
-        self.progress_bar.set(0)
+        self.progress_bar.configure(mode="indeterminate")
+        self.progress_bar.start()
         self.progress_bar.pack(pady=(5, 0))
 
         threading.Thread(target=self._process_task, daemon=True).start()
@@ -186,12 +209,14 @@ class AppGUI(ctk.CTk):
         total = len(self.selected_files)
         val = self.atten_slider.get()
         do_post = self.postprocess_var.get()
+        enhance_vid = self.enhance_video_var.get()
+        vid_res = self.video_resolution_var.get()
         first_output_path = None
         has_error = False
 
         for i, input_file in enumerate(self.selected_files):
             try:
-                self.status_label.configure(text=f"Procesando {i+1} de {total}: {os.path.basename(input_file)}")
+                self.after(0, lambda lbl=f"Procesando {i+1} de {total}: {os.path.basename(input_file)}": self.status_label.configure(text=lbl))
                 
                 name, ext = os.path.splitext(input_file)
                 if self.audio_processor.is_video_file(input_file):
@@ -202,20 +227,27 @@ class AppGUI(ctk.CTk):
                 if first_output_path is None:
                     first_output_path = output_path
 
-                self.audio_processor.process_file(input_file, output_path, atten_lim_db=val, apply_postprocess=do_post)
+                self.audio_processor.process_file(
+                    input_file, 
+                    output_path, 
+                    atten_lim_db=val, 
+                    apply_postprocess=do_post,
+                    enhance_video=enhance_vid,
+                    video_resolution=vid_res
+                )
                 
-                # Actualizar barra de progreso determinada
-                progress = (i + 1) / total
-                self.progress_bar.set(progress)
+                # Como la barra es indeterminada, no usamos .set(p) aquí, solo dejamos que anime
+                # progress = (i + 1) / total
+                # self.after(0, lambda p=progress: self.progress_bar.set(p))
 
             except Exception as e:
                 has_error = True
-                self._update_gui_after_process(success=False, msg=f"Error en {os.path.basename(input_file)}: {str(e)}")
+                self.after(0, lambda m=f"Error en {os.path.basename(input_file)}: {str(e)}": self._update_gui_after_process(success=False, msg=m))
                 return # Salir del bucle si hay error
 
         if not has_error:
             msg = f"¡Completado!\nSe procesaron {total} archivos exitosamente."
-            self._update_gui_after_process(success=True, msg=msg)
+            self.after(0, lambda m=msg: self._update_gui_after_process(success=True, msg=m))
             
             if first_output_path:
                 try:
@@ -224,6 +256,8 @@ class AppGUI(ctk.CTk):
                     pass
 
     def _update_gui_after_process(self, success: bool, msg: str) -> None:
+        self.progress_bar.stop()
+        self.progress_bar.configure(mode="determinate")
         self.progress_bar.pack_forget()
         
         self.select_btn.configure(state="normal")
@@ -231,6 +265,8 @@ class AppGUI(ctk.CTk):
         self.preview_btn.configure(state="normal")
         self.atten_slider.configure(state="normal")
         self.postprocess_check.configure(state="normal")
+        self.enhance_video_check.configure(state="normal")
+        self._toggle_video_options()
         
         if success:
             self.status_label.configure(text="Proceso Finalizado", text_color="green")
