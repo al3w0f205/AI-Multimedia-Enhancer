@@ -9,8 +9,10 @@ from spandrel import ModelLoader
 from tqdm import tqdm
 
 def download_file(url, dest_path):
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise ValueError("URL de descarga no segura.")
     print(f"Descargando modelo desde {url}...")
-    urllib.request.urlretrieve(url, dest_path)
+    urllib.request.urlretrieve(url, dest_path)  # nosec B310
     print("Descarga completada.")
 
 class VideoEnhancer:
