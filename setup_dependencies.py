@@ -8,13 +8,13 @@ def detect_gpus():
     has_amd_intel = False
     try:
         if sys.platform.startswith("win"):
-            out = subprocess.check_output("wmic path win32_VideoController get name", shell=True).decode("utf-8", errors="ignore").lower()
+            out = subprocess.check_output(["wmic", "path", "win32_VideoController", "get", "name"]).decode("utf-8", errors="ignore").lower()
             if "nvidia" in out:
                 has_nvidia = True
             if "amd" in out or "radeon" in out or "intel" in out:
                 has_amd_intel = True
         else:
-            out = subprocess.check_output("lspci", shell=True).decode("utf-8", errors="ignore").lower()
+            out = subprocess.check_output(["lspci"]).decode("utf-8", errors="ignore").lower()
             if "nvidia" in out:
                 has_nvidia = True
             if "amd" in out or "ati" in out or "intel" in out:
