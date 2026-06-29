@@ -99,6 +99,7 @@ class AppGUI(ctk.CTk):
         # Barra de progreso inferior
         self.progress_bar = ctk.CTkProgressBar(self.main_frame, mode="determinate", height=10, corner_radius=5)
         self.progress_bar.set(0)
+        self.progress_label = ctk.CTkLabel(self.main_frame, text="", font=ctk.CTkFont(size=11))
 
     def _build_audio_section(self) -> None:
         self.audio_frame.grid_columnconfigure(0, weight=1)
@@ -331,6 +332,8 @@ class AppGUI(ctk.CTk):
         self.progress_bar.configure(mode="determinate")
         self.progress_bar.set(0)
         self.progress_bar.grid(row=1, column=0, columnspan=2, pady=(10, 0), sticky="ew")
+        self.progress_label.configure(text="Iniciando procesamiento...", text_color="white")
+        self.progress_label.grid(row=2, column=0, columnspan=2, pady=(5, 0), sticky="ew")
 
         threading.Thread(target=self._process_task, daemon=True).start()
 
@@ -380,11 +383,30 @@ class AppGUI(ctk.CTk):
                     first_output_path = output_path
 
                 # Callback para reportar progreso acumulado global en la UI
+                import time
+                import datetime
+
                 def make_progress_callback(file_idx):
+                    start_time = time.time()
+                    
                     def progress_cb(current, total_val):
                         file_progress = current / total_val if total_val > 0 else 0.0
                         global_progress = (file_idx + file_progress) / total
                         self.after(0, lambda: self.progress_bar.set(global_progress))
+                        
+                        # Estimar tiempo restante (ETA) y velocidad
+                        if current > 0:
+                            elapsed = time.time() - start_time
+                            sec_per_it = elapsed / current
+                            remaining = total_val - current
+                            eta_seconds = remaining * sec_per_it
+                            
+                            eta_str = str(datetime.timedelta(seconds=int(eta_seconds)))
+                            status_text = f"Archivo {file_idx+1}/{total} | {current}/{total_val} frames ({int(file_progress * 100)}%) - Resta: {eta_str} ({sec_per_it:.2f}s/it)"
+                        else:
+                            status_text = f"Archivo {file_idx+1}/{total} | Procesando..."
+                            
+                        self.after(0, lambda: self.progress_label.configure(text=status_text))
                     return progress_cb
 
                 self.audio_processor.process_file(
@@ -455,6 +477,7 @@ class AppGUI(ctk.CTk):
     def _update_gui_after_process(self, success: bool, msg: str) -> None:
         self.progress_bar.configure(mode="determinate")
         self.progress_bar.grid_forget()
+        self.progress_label.grid_forget()
         
         self.select_btn.configure(state="normal")
         self.preview_btn.configure(state="normal")
